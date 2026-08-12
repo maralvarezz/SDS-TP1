@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public final class StaticFileWriter {
     private StaticFileWriter() {
@@ -19,11 +20,18 @@ public final class StaticFileWriter {
         }
 
         List<String> lines = new ArrayList<>();
-        lines.add(Integer.toString(staticSystem.n()));
-        lines.add(Double.toString(staticSystem.l()));
+        lines.add(String.format(Locale.US, "%7d", staticSystem.n()));
+        lines.add(formatBoxLength(staticSystem.l()));
         for (StaticParticle particle : staticSystem.particles()) {
-            lines.add(particle.radius() + " " + particle.property());
+            lines.add(String.format(Locale.US, "%10.4f%10.4f", particle.radius(), particle.property()));
         }
         Files.write(path, lines);
+    }
+
+    private static String formatBoxLength(double l) {
+        if (l == Math.rint(l)) {
+            return String.format(Locale.US, "%7.0f", l);
+        }
+        return String.format(Locale.US, "%10.4f", l);
     }
 }

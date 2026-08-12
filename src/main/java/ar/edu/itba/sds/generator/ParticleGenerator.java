@@ -23,7 +23,7 @@ public final class ParticleGenerator {
             double radius = config.radiusMin() == config.radiusMax()
                     ? config.radiusMin()
                     : config.radiusMin() + random.nextDouble(config.radiusMax() - config.radiusMin());
-            particles.add(new StaticParticle(id, radius, 0));
+            particles.add(new StaticParticle(id, radius, 1));
         }
         return new StaticSystem(config.n(), config.l(), List.copyOf(particles));
     }
@@ -35,8 +35,9 @@ public final class ParticleGenerator {
         for (StaticParticle staticParticle : staticSystem.particles()) {
             Particle candidate = null;
             for (int attempt = 0; attempt < MAX_ATTEMPTS_PER_PARTICLE; attempt++) {
-                double x = staticParticle.radius() + random.nextDouble(staticSystem.l() - 2 * staticParticle.radius());
-                double y = staticParticle.radius() + random.nextDouble(staticSystem.l() - 2 * staticParticle.radius());
+                double bound = staticSystem.l() - 2 * staticParticle.radius();
+                double x = staticParticle.radius() + random.nextDouble(bound);
+                double y = staticParticle.radius() + random.nextDouble(bound);
                 Particle next = new Particle(staticParticle.id(), x, y, staticParticle.radius(), staticParticle.property());
                 if (!overlaps(next, particles, config.periodic(), staticSystem.l())) {
                     candidate = next;

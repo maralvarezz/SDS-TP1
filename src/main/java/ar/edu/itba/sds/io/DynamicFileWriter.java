@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public final class DynamicFileWriter {
     private DynamicFileWriter() {
@@ -18,9 +19,9 @@ public final class DynamicFileWriter {
         }
 
         List<String> lines = new ArrayList<>();
-        lines.add("0");
+        lines.add(String.format(Locale.US, "%4d", 0));
         for (Particle particle : particles) {
-            lines.add(particle.x() + " " + particle.y());
+            lines.add(String.format(Locale.US, "%16.7e%16.7e", particle.x(), particle.y()));
         }
         Files.write(path, lines);
     }

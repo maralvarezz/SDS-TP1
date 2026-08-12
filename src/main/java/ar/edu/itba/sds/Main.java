@@ -10,6 +10,7 @@ import ar.edu.itba.sds.io.DynamicFileWriter;
 import ar.edu.itba.sds.io.NeighbourWriter;
 import ar.edu.itba.sds.io.StaticFileReader;
 import ar.edu.itba.sds.io.StaticFileWriter;
+import ar.edu.itba.sds.io.TimeWriter;
 import ar.edu.itba.sds.model.Particle;
 import ar.edu.itba.sds.model.StaticSystem;
 import ar.edu.itba.sds.validation.ParticleSystemValidator;
@@ -56,8 +57,10 @@ public final class Main {
         long elapsed = System.nanoTime() - start;
 
         NeighbourWriter.write(config.neighboursFile(), staticSystem.n(), neighbours);
+        TimeWriter.write(config.timeFile(), elapsed);
         System.out.println("Busqueda CIM completada en " + elapsed + " ns");
         System.out.println("Vecinos escritos en " + config.neighboursFile());
+        System.out.println("Tiempo escrito en " + config.timeFile());
     }
 
     private static StaticSystem obtainStaticSystem(SimulationConfig config) throws IOException {

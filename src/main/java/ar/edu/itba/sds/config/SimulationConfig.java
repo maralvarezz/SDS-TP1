@@ -15,6 +15,7 @@ public record SimulationConfig(
         String inputMode,
         Path staticFile,
         Path dynamicFile,
-        Path neighboursFile
+        Path neighboursFile,
+        Path timeFile
 ) {
 }

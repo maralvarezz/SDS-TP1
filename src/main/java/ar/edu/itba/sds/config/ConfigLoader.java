@@ -31,7 +31,8 @@ public final class ConfigLoader {
                 properties.getProperty("simulation.input-mode"),
                 Path.of(properties.getProperty("simulation.input.static")),
                 Path.of(properties.getProperty("simulation.input.dynamic")),
-                Path.of(properties.getProperty("simulation.output.neighbours"))
+                Path.of(properties.getProperty("simulation.output.neighbours")),
+                Path.of(properties.getProperty("simulation.output.time"))
         );
     }
 
@@ -48,7 +49,8 @@ public final class ConfigLoader {
         properties.setProperty("simulation.input-mode", "auto");
         properties.setProperty("simulation.input.static", "input/static.txt");
         properties.setProperty("simulation.input.dynamic", "input/dynamic.txt");
-        properties.setProperty("simulation.output.neighbours", "output/neighbours.txt");
+        properties.setProperty("simulation.output.neighbours", "output/output.txt");
+        properties.setProperty("simulation.output.time", "output/time.txt");
         return properties;
     }
 
@@ -91,6 +93,7 @@ public final class ConfigLoader {
         mapping.put("static-file", "simulation.input.static");
         mapping.put("dynamic-file", "simulation.input.dynamic");
         mapping.put("neighbours-file", "simulation.output.neighbours");
+        mapping.put("time-file", "simulation.output.time");
         return mapping;
     }
 
