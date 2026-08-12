@@ -6,3 +6,4 @@ target/
 input
 output
 ejemplo
+__pycache__/

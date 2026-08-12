@@ -46,4 +46,11 @@ public final class ConfigValidator {
                     """.formatted(config.m(), config.l(), cellLength, minimumCellLength, maxM));
         }
     }
+
+    public static void validateTarget(SimulationConfig config) {
+        if (config.targetParticleId() < 1 || config.targetParticleId() > config.n()) {
+            throw new IllegalArgumentException(
+                    "target-particle debe estar entre 1 y N (" + config.n() + "), recibido: " + config.targetParticleId());
+        }
+    }
 }

@@ -16,6 +16,11 @@ public record SimulationConfig(
         Path staticFile,
         Path dynamicFile,
         Path neighboursFile,
-        Path timeFile
+        int targetParticleId,
+        boolean vizEnabled,
+        String vizPythonExecutable,
+        Path vizPlotScript,
+        Path vizOutputDir,
+        Path vizRenderDataFile
 ) {
 }
