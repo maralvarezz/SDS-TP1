@@ -14,8 +14,8 @@ public final class ConfigValidator {
         if (config.rc() <= 0) {
             throw new IllegalArgumentException("rc debe ser mayor a 0");
         }
-        if (config.m() < 3) {
-            throw new IllegalArgumentException("M debe ser mayor o igual a 3");
+        if (config.m() < 1) {
+            throw new IllegalArgumentException("M debe ser mayor o igual a 1");
         }
         if (config.radiusMin() <= 0 || config.radiusMax() <= 0) {
             throw new IllegalArgumentException("Los radios minimo y maximo deben ser mayores a 0");

@@ -32,6 +32,7 @@ public final class ConfigLoader {
                 Path.of(properties.getProperty("simulation.input.static")),
                 Path.of(properties.getProperty("simulation.input.dynamic")),
                 Path.of(properties.getProperty("simulation.output.neighbours")),
+                Path.of(properties.getProperty("simulation.output.time")),
                 intProperty(properties, "simulation.target-particle"),
                 booleanProperty(properties, "simulation.viz.enabled"),
                 properties.getProperty("simulation.viz.python-executable"),
@@ -55,8 +56,9 @@ public final class ConfigLoader {
         properties.setProperty("simulation.input.static", "input/static.txt");
         properties.setProperty("simulation.input.dynamic", "input/dynamic.txt");
         properties.setProperty("simulation.output.neighbours", "output/neighbours.txt");
+        properties.setProperty("simulation.output.time", "output/time.txt");
         properties.setProperty("simulation.target-particle", "1");
-        properties.setProperty("simulation.viz.enabled", "true");
+        properties.setProperty("simulation.viz.enabled", "false");
         properties.setProperty("simulation.viz.python-executable", "python3");
         properties.setProperty("simulation.viz.plot-script", "viz/plot_static.py");
         properties.setProperty("simulation.viz.output-dir", "output/figures");
@@ -103,6 +105,7 @@ public final class ConfigLoader {
         mapping.put("static-file", "simulation.input.static");
         mapping.put("dynamic-file", "simulation.input.dynamic");
         mapping.put("neighbours-file", "simulation.output.neighbours");
+        mapping.put("time-file", "simulation.output.time");
         mapping.put("target", "simulation.target-particle");
         mapping.put("viz-enabled", "simulation.viz.enabled");
         mapping.put("viz-python", "simulation.viz.python-executable");

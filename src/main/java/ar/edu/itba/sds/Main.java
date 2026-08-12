@@ -11,6 +11,7 @@ import ar.edu.itba.sds.io.NeighbourWriter;
 import ar.edu.itba.sds.io.RenderDataWriter;
 import ar.edu.itba.sds.io.StaticFileReader;
 import ar.edu.itba.sds.io.StaticFileWriter;
+import ar.edu.itba.sds.io.TimeWriter;
 import ar.edu.itba.sds.model.Particle;
 import ar.edu.itba.sds.model.StaticSystem;
 import ar.edu.itba.sds.validation.ParticleSystemValidator;
@@ -59,23 +60,25 @@ public final class Main {
         long elapsed = System.nanoTime() - start;
 
         NeighbourWriter.write(config.neighboursFile(), staticSystem.n(), neighbours);
+        TimeWriter.write(config.timeFile(), elapsed);
         System.out.println("Busqueda CIM completada en " + elapsed + " ns");
         System.out.println("Vecinos escritos en " + config.neighboursFile());
+        System.out.println("Tiempo escrito en " + config.timeFile());
 
-        RenderDataWriter.write(
-                config.vizRenderDataFile(),
-                staticSystem.l(),
-                config.rc(),
-                config.periodic(),
-                config.targetParticleId(),
-                particles,
-                neighbours
-        );
+        if (config.vizEnabled()) {
+            RenderDataWriter.write(
+                    config.vizRenderDataFile(),
+                    staticSystem.l(),
+                    config.rc(),
+                    config.periodic(),
+                    config.targetParticleId(),
+                    particles,
+                    neighbours
+            );
 
-        // Genera automaticamente, en cada corrida, la figura pedida en el punto 1
-        // del enunciado: todas las particulas, la particula objetivo de un color
-        // y sus vecinos de otro.
-        PlotInvoker.generateStaticFigure(config);
+            // Genera la figura pedida solo si se habilita por parametro/config.
+            PlotInvoker.generateStaticFigure(config);
+        }
     }
 
     private static StaticSystem obtainStaticSystem(SimulationConfig config) throws IOException {
