@@ -66,8 +66,21 @@ El script `viz/time_analysis.py` corre varias ejecuciones del CIM y genera un
 grafico de linea con marcadores y barras de error. Usa los tiempos que escribe
 `Main` con `TimeWriter`; el script no mide el tiempo por su cuenta.
 
-El resultado persistente es solo el PNG final en `output/figures/`. Los archivos
-internos de cada corrida se guardan temporalmente mientras dura el analisis y se
+Cada analisis queda guardado en una carpeta propia dentro de `output/figures/`.
+Por ejemplo, al variar `M` se crea:
+
+```text
+output/figures/time_M_<timestamp>/
+  time_M_<timestamp>.png
+  time_M_<timestamp>_runs.csv
+  time_M_<timestamp>_summary.csv
+  metadata.json
+```
+
+`metadata.json` guarda los parametros estaticos del analisis y
+`*_runs.csv` guarda los datos que varian por corrida. Con esos archivos alcanza
+para regenerar el grafico sin volver a correr las simulaciones. Los archivos
+pesados/intermedios de cada corrida se siguen usando solo temporalmente y se
 borran al final.
 
 Para recrear el grafico variando `N` de 20 a 100 en intervalos de 10, dejando
@@ -80,7 +93,7 @@ python viz/time_analysis.py --variable n --values 20 30 40 50 60 70 80 90 100 --
 Salida:
 
 ```text
-output/figures/time_N_<timestamp>.png
+output/figures/time_N_<timestamp>/time_N_<timestamp>.png
 ```
 
 Para recrear el grafico variando `M` de 1 a 10, dejando fijos `N=150`, `L=50`
@@ -93,7 +106,13 @@ python viz/time_analysis.py --variable m --values 1 2 3 4 5 6 7 8 9 10 --runs-pe
 Salida:
 
 ```text
-output/figures/time_M_<timestamp>.png
+output/figures/time_M_<timestamp>/time_M_<timestamp>.png
+```
+
+Para regenerar un grafico ya guardado sin ejecutar Java:
+
+```bash
+python viz/time_analysis.py --replot-dir output/figures/time_M_<timestamp>
 ```
 
 En el analisis variando `M`, la primera corrida crea un unico set de particulas

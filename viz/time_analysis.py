@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import math
 import shutil
 import statistics
@@ -43,8 +44,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Corre multiples ejecuciones del CIM variando N o M y genera un grafico de tiempos."
     )
-    parser.add_argument("--variable", choices=("n", "m"), required=True, help="Variable a barrer.")
-    parser.add_argument("--values", nargs="+", type=positive_int, required=True, help="Valores de N o M a probar.")
+    parser.add_argument("--variable", choices=("n", "m"), help="Variable a barrer.")
+    parser.add_argument("--values", nargs="+", type=positive_int, help="Valores de N o M a probar.")
     parser.add_argument("--runs-per-value", type=positive_int, default=10, help="Corridas por cada valor.")
     parser.add_argument("--seed", type=int, default=12345, help="Seed usada para generar sistemas reproducibles.")
     parser.add_argument("--n", type=positive_int, default=100, help="N fijo cuando --variable=m.")
@@ -84,6 +85,11 @@ def parse_args() -> argparse.Namespace:
             "N intermedio cuya densidad N/L^2 se mantiene en la curva de densidad fija. "
             "Debe ser uno de --values; si se omite se usa el valor central."
         ),
+    )
+    parser.add_argument(
+        "--replot-dir",
+        type=Path,
+        help="Regenera el PNG desde una carpeta time_<tipo>_<timestamp> ya guardada, sin ejecutar Java.",
     )
     return parser.parse_args()
 
@@ -268,6 +274,13 @@ def aggregate(rows: list[dict[str, float | int | str]]) -> list[dict[str, float 
     return summary
 
 
+def aggregate_by_series(rows: list[dict[str, float | int | str]]) -> dict[str, list[dict[str, float | int]]]:
+    grouped: dict[str, list[dict[str, float | int | str]]] = {}
+    for row in rows:
+        grouped.setdefault(str(row["series"]), []).append(row)
+    return {series: aggregate(series_rows) for series, series_rows in grouped.items()}
+
+
 def plot_summary(path: Path, args: argparse.Namespace, summary: list[dict[str, float | int]]) -> None:
     x_values = [int(row["value"]) for row in summary]
     means = [float(row["mean_ms"]) for row in summary]
@@ -376,12 +389,88 @@ def write_csv(path: Path, rows: list[dict], fieldnames: list[str]) -> None:
         writer.writerows(rows)
 
 
+def read_csv(path: Path) -> list[dict[str, str]]:
+    with path.open("r", newline="", encoding="utf-8") as input_file:
+        return list(csv.DictReader(input_file))
+
+
+def write_metadata(path: Path, args: argparse.Namespace, timestamp: str, suffix: str, reference_n: int | None) -> None:
+    metadata = {
+        "timestamp": timestamp,
+        "suffix": suffix,
+        "plot_type": "density_comparison" if args.compare_density else "single_variable",
+        "density_reference_n": reference_n,
+        "args": {
+            "variable": args.variable,
+            "values": args.values,
+            "runs_per_value": args.runs_per_value,
+            "seed": args.seed,
+            "n": args.n,
+            "m": args.m,
+            "l": args.l,
+            "rc": args.rc,
+            "radius_min": args.radius_min,
+            "radius_max": args.radius_max,
+            "periodic": args.periodic,
+            "target": args.target,
+            "compare_density": args.compare_density,
+        },
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def namespace_from_metadata(metadata: dict) -> argparse.Namespace:
+    data = dict(metadata["args"])
+    data.setdefault("show", False)
+    data.setdefault("density_reference_n", metadata.get("density_reference_n"))
+    return argparse.Namespace(**data)
+
+
+def replot_saved(run_dir: Path) -> None:
+    metadata_path = run_dir / "metadata.json"
+    if not metadata_path.exists():
+        raise SystemExit(f"No existe metadata.json en {run_dir}")
+
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    suffix = metadata["suffix"]
+    stem = run_dir / f"time_{suffix}_{metadata['timestamp']}"
+    runs_csv = run_dir / f"{stem.name}_runs.csv"
+    if not runs_csv.exists():
+        raise SystemExit(f"No existe el CSV de corridas esperado: {runs_csv}")
+
+    args = namespace_from_metadata(metadata)
+    rows = read_csv(runs_csv)
+    summaries = aggregate_by_series(rows)
+    output_png = stem.with_suffix(".png")
+
+    if metadata["plot_type"] == "density_comparison":
+        reference_n = int(metadata["density_reference_n"])
+        plot_density_comparison(
+            output_png,
+            args,
+            summaries.get("free", []),
+            summaries.get("fixed_density", []),
+            reference_n,
+        )
+    else:
+        plot_summary(output_png, args, summaries.get("standard", []))
+
+    print(f"Grafico regenerado: {output_png}")
+
+
 def with_series(summary: list[dict[str, float | int]], series: str) -> list[dict]:
     return [{"series": series, **row} for row in summary]
 
 
 def main() -> None:
     args = parse_args()
+    if args.replot_dir is not None:
+        replot_saved(args.replot_dir)
+        return
+
+    if args.variable is None or args.values is None:
+        raise SystemExit("--variable y --values son requeridos salvo que se use --replot-dir")
     if args.l <= 0 or args.rc <= 0 or args.radius_min <= 0 or args.radius_max <= 0:
         raise SystemExit("L, rc y radios deben ser mayores a 0")
     if args.radius_min > args.radius_max:
@@ -407,7 +496,8 @@ def main() -> None:
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     suffix = "N_density_comparison" if args.compare_density else args.variable.upper()
-    stem = Path("output/figures") / f"time_{suffix}_{timestamp}"
+    output_dir = Path("output/figures") / f"time_{suffix}_{timestamp}"
+    stem = output_dir / f"time_{suffix}_{timestamp}"
     run_root = Path("output/analysis_runs") / f"time_{suffix}_{timestamp}"
     try:
         if args.compare_density:
@@ -440,6 +530,7 @@ def main() -> None:
 
         runs_csv = Path(f"{stem}_runs.csv")
         summary_csv = Path(f"{stem}_summary.csv")
+        metadata_json = output_dir / "metadata.json"
         write_csv(
             runs_csv,
             rows,
@@ -450,10 +541,13 @@ def main() -> None:
             summary_rows,
             ["series", "value", "runs", "mean_ms", "stdev_ms", "stderr_ms"],
         )
+        write_metadata(metadata_json, args, timestamp, suffix, reference_n)
 
+        print(f"Carpeta: {output_dir}")
         print(f"Grafico: {stem.with_suffix('.png')}")
         print(f"Corridas: {runs_csv}")
         print(f"Resumen: {summary_csv}")
+        print(f"Metadata: {metadata_json}")
     finally:
         if run_root.exists():
             shutil.rmtree(run_root)
