@@ -4,11 +4,13 @@
 Examples:
     python viz/time_analysis.py --variable m --values 3 4 5 6 7 8 9 10 --runs-per-value 10 --n 100
     python viz/time_analysis.py --variable n --values 100 200 300 400 --runs-per-value 10 --m 8
+    python viz/time_analysis.py --variable n --values 10 50 100 200 300 400 --compare-density --density-reference-n 200
 """
 
 from __future__ import annotations
 
 import argparse
+import csv
 import math
 import shutil
 import statistics
@@ -67,6 +69,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--javac", default="javac", help="Ejecutable de javac si se usa --compile.")
     parser.add_argument("--release", type=non_negative_int, default=21, help="Release de Java para javac.")
     parser.add_argument("--show", action="store_true", help="Abre una ventana con el grafico al terminar.")
+    parser.add_argument(
+        "--compare-density",
+        action="store_true",
+        help=(
+            "Punto 4.2: con --variable=n, superpone la curva de L fijo (densidad libre) "
+            "y la de densidad fija obtenida aumentando L junto con N."
+        ),
+    )
+    parser.add_argument(
+        "--density-reference-n",
+        type=positive_int,
+        help=(
+            "N intermedio cuya densidad N/L^2 se mantiene en la curva de densidad fija. "
+            "Debe ser uno de --values; si se omite se usa el valor central."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -91,7 +109,6 @@ def compile_sources(args: argparse.Namespace) -> None:
 
 def java_base_args(args: argparse.Namespace) -> list[str]:
     return [
-        f"--l={args.l}",
         f"--rc={args.rc}",
         f"--radius-min={args.radius_min}",
         f"--radius-max={args.radius_max}",
@@ -137,14 +154,24 @@ def paths_for_value(run_root: Path, variable: str, value: int) -> dict[str, Path
     }
 
 
-def run_analysis(args: argparse.Namespace, run_root: Path) -> list[dict[str, float | int]]:
-    rows: list[dict[str, float | int]] = []
+def run_analysis(
+    args: argparse.Namespace,
+    run_root: Path,
+    *,
+    series: str = "standard",
+    density_reference_n: int | None = None,
+) -> list[dict[str, float | int | str]]:
+    rows: list[dict[str, float | int | str]] = []
 
     shared_m_input_paths = paths_for_value(run_root, "m_fixed_particles", args.n)
     base = java_base_args(args)
 
     for value in args.values:
-        value_paths = paths_for_value(run_root, args.variable, value)
+        if series == "fixed_density" and value < density_reference_n:
+            continue
+
+        path_variable = args.variable if series == "standard" else f"{args.variable}_{series}"
+        value_paths = paths_for_value(run_root, path_variable, value)
         if args.variable == "m":
             value_paths["static"] = shared_m_input_paths["static"]
             value_paths["dynamic"] = shared_m_input_paths["dynamic"]
@@ -153,12 +180,25 @@ def run_analysis(args: argparse.Namespace, run_root: Path) -> list[dict[str, flo
         for run_number in range(1, args.runs_per_value + 1):
             n_value = args.n if args.variable == "m" else value
             m_value = value if args.variable == "m" else args.m
+            # StaticFileWriter usa 4 decimales para L, tambien en los analisis
+            # comunes; normalizarlo evita diferencias al reutilizar archivos.
+            base_l = round(args.l, 4)
+            l_value = base_l
+            if series == "fixed_density":
+                # StaticFileWriter persiste L con 4 decimales; usar la misma
+                # precision permite que las repeticiones en modo file validen
+                # exactamente contra el valor guardado.
+                l_value = round(base_l * math.sqrt(n_value / density_reference_n), 4)
+                # Mantiene aproximadamente el largo de celda optimo L/M hallado
+                # en 4.1. floor evita crear celdas mas pequenas que las originales.
+                m_value = max(1, math.floor(args.m * l_value / base_l + 1e-12))
             input_mode = "random" if run_number == 1 and (args.variable == "n" or not value_paths["static"].exists()) else "file"
 
             cli_args = [
                 *base,
                 f"--n={n_value}",
                 f"--m={m_value}",
+                f"--l={l_value:.12g}",
                 f"--input-mode={input_mode}",
                 f"--static-file={value_paths['static']}",
                 f"--dynamic-file={value_paths['dynamic']}",
@@ -178,16 +218,22 @@ def run_analysis(args: argparse.Namespace, run_root: Path) -> list[dict[str, flo
                     "run": run_number,
                     "n": n_value,
                     "m": m_value,
+                    "l": l_value,
+                    "density": n_value / (l_value * l_value),
+                    "series": series,
                     "elapsed_ns": elapsed_ns,
                     "elapsed_ms": elapsed_ns / 1_000_000,
                 }
             )
-            print(f"{args.variable.upper()}={value} corrida {run_number}/{args.runs_per_value}: {elapsed_ns} ns")
+            print(
+                f"{series}: {args.variable.upper()}={value}, L={l_value:.6g}, M={m_value}, "
+                f"corrida {run_number}/{args.runs_per_value}: {elapsed_ns} ns"
+            )
 
     return rows
 
 
-def aggregate(rows: list[dict[str, float | int]]) -> list[dict[str, float | int]]:
+def aggregate(rows: list[dict[str, float | int | str]]) -> list[dict[str, float | int]]:
     grouped: dict[int, list[float]] = {}
     for row in rows:
         grouped.setdefault(int(row["value"]), []).append(float(row["elapsed_ms"]))
@@ -215,6 +261,7 @@ def plot_summary(path: Path, args: argparse.Namespace, summary: list[dict[str, f
     means = [float(row["mean_ms"]) for row in summary]
     errors = [float(row["stdev_ms"]) for row in summary]
 
+    path.parent.mkdir(parents=True, exist_ok=True)
     fig, ax = plt.subplots(figsize=(7.2, 4.6), dpi=160)
     ax.errorbar(
         x_values,
@@ -251,26 +298,150 @@ def plot_summary(path: Path, args: argparse.Namespace, summary: list[dict[str, f
     plt.close(fig)
 
 
+def plot_density_comparison(
+    path: Path,
+    args: argparse.Namespace,
+    free_summary: list[dict[str, float | int]],
+    fixed_summary: list[dict[str, float | int]],
+    reference_n: int,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    density = reference_n / (args.l * args.l)
+    fig, ax = plt.subplots(figsize=(7.8, 5.0), dpi=160)
+
+    series = (
+        (free_summary, "#2a78d6", "o", f"Densidad libre (L={args.l:g})"),
+        (
+            fixed_summary,
+            "#eb6834",
+            "s",
+            f"Densidad fija (rho={density:.4g}, L y M variables)",
+        ),
+    )
+    for summary, color, marker, label in series:
+        ax.errorbar(
+            [int(row["value"]) for row in summary],
+            [float(row["mean_ms"]) for row in summary],
+            yerr=[float(row["stdev_ms"]) for row in summary],
+            color=color,
+            ecolor=color,
+            marker=marker,
+            label=label,
+            markersize=5.2,
+            linewidth=1.8,
+            elinewidth=1.1,
+            capsize=3.5,
+        )
+
+    boundary_label = "periodico" if args.periodic else "no periodico"
+    ax.set_xlabel("N")
+    ax.set_ylabel("Tiempo CIM promedio (ms)")
+    ax.set_title(
+        f"Tiempo variando N: densidad libre vs. fija | rc={args.rc:g}, {boundary_label}\n"
+        f"Referencia de densidad: N={reference_n}, L={args.l:g}; M base={args.m}",
+        loc="left",
+        fontsize=11,
+    )
+    ax.grid(axis="y", color="#dddddd", linewidth=0.8)
+    ax.grid(axis="x", visible=False)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_color("#c8c8c8")
+    ax.spines["bottom"].set_color("#c8c8c8")
+    ax.tick_params(colors="#666666")
+    ax.set_xticks(sorted({int(row["value"]) for row in free_summary}))
+    ax.legend(frameon=False)
+    fig.tight_layout()
+    fig.savefig(path)
+    plt.close(fig)
+
+
+def write_csv(path: Path, rows: list[dict], fieldnames: list[str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as output:
+        writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def with_series(summary: list[dict[str, float | int]], series: str) -> list[dict]:
+    return [{"series": series, **row} for row in summary]
+
+
 def main() -> None:
     args = parse_args()
     if args.l <= 0 or args.rc <= 0 or args.radius_min <= 0 or args.radius_max <= 0:
         raise SystemExit("L, rc y radios deben ser mayores a 0")
     if args.radius_min > args.radius_max:
         raise SystemExit("radius-min debe ser menor o igual a radius-max")
+    if args.compare_density and args.variable != "n":
+        raise SystemExit("--compare-density solo se puede usar con --variable=n")
+    if args.density_reference_n is not None and not args.compare_density:
+        raise SystemExit("--density-reference-n requiere --compare-density")
+
+    values = sorted(set(args.values))
+    args.values = values
+    reference_n = args.density_reference_n
+    if args.compare_density:
+        if reference_n is None:
+            reference_n = values[len(values) // 2]
+        if reference_n not in values:
+            raise SystemExit("density-reference-n debe ser uno de los valores indicados en --values")
+        if reference_n == values[-1]:
+            raise SystemExit("density-reference-n debe dejar al menos un N mayor para incrementar N y L")
 
     if args.compile:
         compile_sources(args)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    stem = Path("output/figures") / f"time_{args.variable.upper()}_{timestamp}"
-    run_root = Path("output/analysis_runs") / f"time_{args.variable.upper()}_{timestamp}"
+    suffix = "N_density_comparison" if args.compare_density else args.variable.upper()
+    stem = Path("output/figures") / f"time_{suffix}_{timestamp}"
+    run_root = Path("output/analysis_runs") / f"time_{suffix}_{timestamp}"
     try:
-        rows = run_analysis(args, run_root)
-        summary = aggregate(rows)
+        if args.compare_density:
+            free_rows = run_analysis(args, run_root, series="free")
+            fixed_rows = run_analysis(
+                args,
+                run_root,
+                series="fixed_density",
+                density_reference_n=reference_n,
+            )
+            free_summary = aggregate(free_rows)
+            fixed_summary = aggregate(fixed_rows)
+            rows = [*free_rows, *fixed_rows]
+            summary_rows = [
+                *with_series(free_summary, "free"),
+                *with_series(fixed_summary, "fixed_density"),
+            ]
+            plot_density_comparison(
+                stem.with_suffix(".png"),
+                args,
+                free_summary,
+                fixed_summary,
+                reference_n,
+            )
+        else:
+            rows = run_analysis(args, run_root)
+            summary = aggregate(rows)
+            summary_rows = with_series(summary, "standard")
+            plot_summary(stem.with_suffix(".png"), args, summary)
 
-        plot_summary(stem.with_suffix(".png"), args, summary)
+        runs_csv = Path(f"{stem}_runs.csv")
+        summary_csv = Path(f"{stem}_summary.csv")
+        write_csv(
+            runs_csv,
+            rows,
+            ["series", "variable", "value", "run", "n", "m", "l", "density", "elapsed_ns", "elapsed_ms"],
+        )
+        write_csv(
+            summary_csv,
+            summary_rows,
+            ["series", "value", "runs", "mean_ms", "stdev_ms", "stderr_ms"],
+        )
 
         print(f"Grafico: {stem.with_suffix('.png')}")
+        print(f"Corridas: {runs_csv}")
+        print(f"Resumen: {summary_csv}")
     finally:
         if run_root.exists():
             shutil.rmtree(run_root)
