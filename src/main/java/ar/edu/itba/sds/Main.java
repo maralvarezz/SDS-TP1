@@ -77,7 +77,7 @@ public final class Main {
             );
 
             // Genera la figura pedida solo si se habilita por parametro/config.
-            PlotInvoker.generateStaticFigure(config);
+            //PlotInvoker.generateStaticFigure(config);
         }
     }
 

@@ -124,6 +124,11 @@ def copy_if_exists(source: Path, destination: Path) -> None:
         shutil.copy2(source, destination)
 
 
+def delete_if_exists(path: Path) -> None:
+    if path.exists():
+        path.unlink()
+
+
 def paths_for_value(run_root: Path, variable: str, value: int) -> dict[str, Path]:
     value_dir = run_root / f"{variable}_{value}"
     input_dir = value_dir / "input"
@@ -154,9 +159,16 @@ def run_analysis(args: argparse.Namespace, run_root: Path) -> list[dict[str, flo
             n_value = args.n if args.variable == "m" else value
             m_value = value if args.variable == "m" else args.m
             input_mode = "random" if run_number == 1 and (args.variable == "n" or not value_paths["static"].exists()) else "file"
+            run_seed = args.seed
+            if args.variable == "n":
+                delete_if_exists(value_paths["static"])
+                delete_if_exists(value_paths["dynamic"])
+                input_mode = "random"
+                run_seed = args.seed + value * args.runs_per_value + run_number
 
             cli_args = [
                 *base,
+                f"--random-seed={run_seed}",
                 f"--n={n_value}",
                 f"--m={m_value}",
                 f"--input-mode={input_mode}",

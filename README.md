@@ -11,8 +11,6 @@ mvn package
 java -jar target/sds-tp1-1.0-SNAPSHOT.jar
 ```
 
-Si la terminal dice `mvn: command not found`, es que no tenés Maven instalado a nivel sistema (IntelliJ trae el suyo propio, por eso desde ahí funciona sin instalar nada). Para tenerlo también en la terminal: `brew install maven` (con [Homebrew](https://brew.sh)).
-
 Parámetros por `application.properties` o por línea de comandos (`--clave=valor`):
 
 | Parámetro CLI | Descripción | Default |
