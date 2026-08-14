@@ -13,7 +13,7 @@ class ConfigValidatorTest {
     private SimulationConfig configWithTarget(int n, int targetParticleId) {
         return new SimulationConfig(
                 n, 20.0, 10, 1.0, 0.23, 0.26, false, OptionalLong.empty(), "auto",
-                Path.of("input/static.txt"), Path.of("input/dynamic.txt"), Path.of("output/neighbours.txt"),
+                Path.of("input/static.txt"), Path.of("input/dynamic.txt"), Path.of("output/neighbours.txt"),Path.of("output/time.txt"),
                 targetParticleId, true, "python3", Path.of("viz/plot_static.py"),
                 Path.of("output/figures"), Path.of("output/render_data.json")
         );

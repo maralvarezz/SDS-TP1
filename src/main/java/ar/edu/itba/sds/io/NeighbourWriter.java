@@ -20,11 +20,11 @@ public final class NeighbourWriter {
 
         List<String> lines = new ArrayList<>(n);
         for (int id = 1; id <= n; id++) {
-            String line = neighbours.getOrDefault(id, Set.of()).stream()
+            String neighbourIds = neighbours.getOrDefault(id, Set.of()).stream()
                     .sorted()
                     .map(String::valueOf)
-                    .collect(Collectors.joining(","));
-            lines.add(line);
+                    .collect(Collectors.joining(" "));
+            lines.add(neighbourIds.isEmpty() ? String.valueOf(id) : id + "   " + neighbourIds);
         }
         Files.write(path, lines);
     }
