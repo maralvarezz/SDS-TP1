@@ -119,7 +119,6 @@ def java_base_args(args: argparse.Namespace) -> list[str]:
         f"--radius-min={args.radius_min}",
         f"--radius-max={args.radius_max}",
         f"--periodic={str(args.periodic).lower()}",
-        f"--random-seed={args.seed}",
         f"--target={args.target}",
         "--viz-enabled=false",
     ]
@@ -191,33 +190,28 @@ def run_analysis(
         for run_number in range(1, args.runs_per_value + 1):
             n_value = args.n if args.variable == "m" else value
             m_value = value if args.variable == "m" else args.m
-            # StaticFileWriter usa 4 decimales para L, tambien en los analisis
-            # comunes; normalizarlo evita diferencias al reutilizar archivos.
+            # Usa la misma precision que StaticFileWriter para L.
             base_l = round(args.l, 4)
             l_value = base_l
             if series == "fixed_density":
-                # StaticFileWriter persiste L con 4 decimales; usar la misma
-                # precision permite que las repeticiones en modo file validen
-                # exactamente contra el valor guardado.
                 l_value = round(base_l * math.sqrt(n_value / density_reference_n), 4)
                 # Mantiene aproximadamente el largo de celda optimo L/M hallado
                 # en 4.1. floor evita crear celdas mas pequenas que las originales.
                 m_value = max(1, math.floor(args.m * l_value / base_l + 1e-12))
-            input_mode = "random" if run_number == 1 and (args.variable == "n" or not value_paths["static"].exists()) else "file"
-            run_seed = args.seed
-            if args.variable == "n":
-                delete_if_exists(value_paths["static"])
-                delete_if_exists(value_paths["dynamic"])
-                input_mode = "random"
-                run_seed = args.seed + value * args.runs_per_value + run_number
+            # Cada medicion usa un sistema nuevo. Las semillas consecutivas
+            # hacen distintas las corridas, pero la corrida k usa la misma
+            # semilla para todos los valores de M y permite compararlos.
+            value_paths["static"].unlink(missing_ok=True)
+            value_paths["dynamic"].unlink(missing_ok=True)
+            run_seed = args.seed + run_number - 1
 
             cli_args = [
                 *base,
-                f"--random-seed={run_seed}",
                 f"--n={n_value}",
                 f"--m={m_value}",
                 f"--l={l_value:.12g}",
-                f"--input-mode={input_mode}",
+                "--input-mode=random",
+                f"--random-seed={run_seed}",
                 f"--static-file={value_paths['static']}",
                 f"--dynamic-file={value_paths['dynamic']}",
                 f"--neighbours-file={value_paths['neighbours']}",
@@ -245,7 +239,7 @@ def run_analysis(
             )
             print(
                 f"{series}: {args.variable.upper()}={value}, L={l_value:.6g}, M={m_value}, "
-                f"corrida {run_number}/{args.runs_per_value}: {elapsed_ns} ns"
+                f"corrida {run_number}/{args.runs_per_value}, seed={run_seed}: {elapsed_ns} ns"
             )
 
     return rows
