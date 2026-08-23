@@ -4,6 +4,7 @@
 Examples:
     python viz/time_analysis.py --variable m --values 3 4 5 6 7 8 9 10 --runs-per-value 10 --n 100
     python viz/time_analysis.py --variable n --values 100 200 300 400 --runs-per-value 10 --m 8
+    # El barrido de N tambien compara contra fuerza bruta usando CIM con M=1.
     python viz/time_analysis.py --variable n --values 10 50 100 200 300 400 --compare-density --density-reference-n 200
 """
 
@@ -24,6 +25,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.ticker import LogFormatter, LogLocator, ScalarFormatter
 
 
 def positive_int(raw: str) -> int:
@@ -47,7 +49,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--variable", choices=("n", "m"), help="Variable a barrer.")
     parser.add_argument("--values", nargs="+", type=positive_int, help="Valores de N o M a probar.")
     parser.add_argument("--runs-per-value", type=positive_int, default=10, help="Corridas por cada valor.")
-    parser.add_argument("--seed", type=int, default=12345, help="Seed usada para generar sistemas reproducibles.")
+    parser.add_argument(
+        "--seed",
+        type=int,
+        help="Seed usada para generar sistemas reproducibles. Si se omite, cada corrida usa aleatoriedad no deterministica.",
+    )
     parser.add_argument("--n", type=positive_int, default=100, help="N fijo cuando --variable=m.")
     parser.add_argument("--m", type=positive_int, default=10, help="M fijo cuando --variable=n.")
     parser.add_argument("--l", type=float, default=20.0, help="Lado del area.")
@@ -75,7 +81,7 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help=(
             "Punto 4.2: con --variable=n, superpone la curva de L fijo (densidad libre) "
-            "y la de densidad fija obtenida aumentando L junto con N."
+            "y la de densidad fija obtenida aumentando L y M junto con N."
         ),
     )
     parser.add_argument(
@@ -164,12 +170,18 @@ def paths_for_value(run_root: Path, variable: str, value: int) -> dict[str, Path
     }
 
 
+def max_valid_m(l_value: float, args: argparse.Namespace) -> int:
+    minimum_cell_length = args.rc + 2 * args.radius_max
+    return math.floor(l_value / minimum_cell_length)
+
+
 def run_analysis(
     args: argparse.Namespace,
     run_root: Path,
     *,
     series: str = "standard",
     density_reference_n: int | None = None,
+    m_override: int | None = None,
 ) -> list[dict[str, float | int | str]]:
     rows: list[dict[str, float | int | str]] = []
 
@@ -177,9 +189,6 @@ def run_analysis(
     base = java_base_args(args)
 
     for value in args.values:
-        if series == "fixed_density" and value < density_reference_n:
-            continue
-
         path_variable = args.variable if series == "standard" else f"{args.variable}_{series}"
         value_paths = paths_for_value(run_root, path_variable, value)
         if args.variable == "m":
@@ -189,21 +198,23 @@ def run_analysis(
 
         for run_number in range(1, args.runs_per_value + 1):
             n_value = args.n if args.variable == "m" else value
-            m_value = value if args.variable == "m" else args.m
+            m_value = value if args.variable == "m" else (m_override if m_override is not None else args.m)
             # Usa la misma precision que StaticFileWriter para L.
             base_l = round(args.l, 4)
             l_value = base_l
             if series == "fixed_density":
                 l_value = round(base_l * math.sqrt(n_value / density_reference_n), 4)
-                # Mantiene aproximadamente el largo de celda optimo L/M hallado
-                # en 4.1. floor evita crear celdas mas pequenas que las originales.
-                m_value = max(1, math.floor(args.m * l_value / base_l + 1e-12))
-            # Cada medicion usa un sistema nuevo. Las semillas consecutivas
-            # hacen distintas las corridas, pero la corrida k usa la misma
-            # semilla para todos los valores de M y permite compararlos.
+                # Usa el M pasado por parametro como referencia de granularidad.
+                # Si L crece, tambien aumenta M. Si L baja y ese M no entra por
+                # la condicion geometrica del CIM, usa el maximo M valido.
+                scaled_m = math.floor(args.m * l_value / base_l + 1e-12)
+                desired_m = max(args.m, scaled_m)
+                m_value = min(desired_m, max_valid_m(l_value, args))
+            # Cada medicion usa un sistema nuevo. Si se pasa --seed, las
+            # semillas consecutivas hacen reproducible el barrido.
             value_paths["static"].unlink(missing_ok=True)
             value_paths["dynamic"].unlink(missing_ok=True)
-            run_seed = args.seed + run_number - 1
+            run_seed = args.seed + run_number - 1 if args.seed is not None else None
 
             cli_args = [
                 *base,
@@ -211,12 +222,13 @@ def run_analysis(
                 f"--m={m_value}",
                 f"--l={l_value:.12g}",
                 "--input-mode=random",
-                f"--random-seed={run_seed}",
                 f"--static-file={value_paths['static']}",
                 f"--dynamic-file={value_paths['dynamic']}",
                 f"--neighbours-file={value_paths['neighbours']}",
                 f"--time-file={value_paths['time']}",
             ]
+            if run_seed is not None:
+                cli_args.append(f"--random-seed={run_seed}")
             elapsed_ns = run_main(args, cli_args, value_paths["time"])
 
             run_prefix = value_paths["outputs"] / f"run_{run_number:03d}"
@@ -239,7 +251,8 @@ def run_analysis(
             )
             print(
                 f"{series}: {args.variable.upper()}={value}, L={l_value:.6g}, M={m_value}, "
-                f"corrida {run_number}/{args.runs_per_value}, seed={run_seed}: {elapsed_ns} ns"
+                f"corrida {run_number}/{args.runs_per_value}, seed={run_seed if run_seed is not None else 'random'}: "
+                f"{elapsed_ns} ns"
             )
 
     return rows
@@ -298,6 +311,9 @@ def plot_summary(path: Path, args: argparse.Namespace, summary: list[dict[str, f
     fixed_label = f"N={args.n:g}" if args.variable == "m" else f"M={args.m:g}"
     ax.set_xlabel(variable)
     ax.set_ylabel("Tiempo CIM promedio (ms)")
+    ax.set_yscale("log", base=10)
+    ax.yaxis.set_major_locator(LogLocator(base=10))
+    ax.yaxis.set_major_formatter(LogFormatter(base=10, labelOnlyBase=False))
     boundary_label = "periodico" if args.periodic else "no periodico"
     ax.set_title(
         f"Tiempo de ejecucion variando {variable} | L={args.l:g}, rc={args.rc:g}, {fixed_label}, {boundary_label}",
@@ -311,7 +327,66 @@ def plot_summary(path: Path, args: argparse.Namespace, summary: list[dict[str, f
     ax.spines["left"].set_color("#c8c8c8")
     ax.spines["bottom"].set_color("#c8c8c8")
     ax.tick_params(colors="#666666")
+    if args.variable == "n":
+        ax.set_xscale("log")
+        ax.xaxis.set_major_formatter(ScalarFormatter())
     ax.set_xticks(x_values)
+    fig.tight_layout()
+    fig.savefig(path)
+    plt.close(fig)
+
+
+def plot_n_m_comparison(
+    path: Path,
+    args: argparse.Namespace,
+    cim_summary: list[dict[str, float | int]],
+    brute_force_summary: list[dict[str, float | int]],
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig, ax = plt.subplots(figsize=(7.8, 5.0), dpi=160)
+
+    series = (
+        (cim_summary, "#2a78d6", "o", f"CIM (M={args.m})"),
+        (brute_force_summary, "#eb6834", "s", "Fuerza bruta (M=1)"),
+    )
+    for summary, color, marker, label in series:
+        ax.errorbar(
+            [int(row["value"]) for row in summary],
+            [float(row["mean_ms"]) for row in summary],
+            yerr=[float(row["stdev_ms"]) for row in summary],
+            color=color,
+            ecolor=color,
+            marker=marker,
+            label=label,
+            markersize=5.2,
+            linewidth=1.8,
+            elinewidth=1.1,
+            capsize=3.5,
+        )
+
+    boundary_label = "periodico" if args.periodic else "no periodico"
+    ax.set_xlabel("N")
+    ax.set_ylabel("Tiempo promedio (ms)")
+    ax.set_yscale("log", base=10)
+    ax.yaxis.set_major_locator(LogLocator(base=10))
+    ax.yaxis.set_major_formatter(LogFormatter(base=10, labelOnlyBase=False))
+    ax.set_title(
+        f"Tiempo variando N: CIM vs. fuerza bruta | L={args.l:g}, rc={args.rc:g}, {boundary_label}",
+        loc="left",
+        fontsize=11,
+    )
+    ax.grid(axis="y", color="#dddddd", linewidth=0.8)
+    ax.grid(axis="x", visible=False)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_color("#c8c8c8")
+    ax.spines["bottom"].set_color("#c8c8c8")
+    ax.tick_params(colors="#666666")
+    ax.set_xscale("log", base=10)
+    ax.xaxis.set_major_locator(LogLocator(base=10))
+    ax.xaxis.set_major_formatter(LogFormatter(base=10, labelOnlyBase=False))
+    ax.set_xticks(sorted({int(row["value"]) for row in [*cim_summary, *brute_force_summary]}))
+    ax.legend(frameon=False)
     fig.tight_layout()
     fig.savefig(path)
     plt.close(fig)
@@ -355,6 +430,9 @@ def plot_density_comparison(
     boundary_label = "periodico" if args.periodic else "no periodico"
     ax.set_xlabel("N")
     ax.set_ylabel("Tiempo CIM promedio (ms)")
+    ax.set_yscale("log", base=10)
+    ax.yaxis.set_major_locator(LogLocator(base=10))
+    ax.yaxis.set_major_formatter(LogFormatter(base=10, labelOnlyBase=False))
     ax.set_title(
         f"Tiempo variando N: densidad libre vs. fija | rc={args.rc:g}, {boundary_label}\n"
         f"Referencia de densidad: N={reference_n}, L={args.l:g}; M base={args.m}",
@@ -368,6 +446,9 @@ def plot_density_comparison(
     ax.spines["left"].set_color("#c8c8c8")
     ax.spines["bottom"].set_color("#c8c8c8")
     ax.tick_params(colors="#666666")
+    ax.set_xscale("log", base=10)
+    ax.xaxis.set_major_locator(LogLocator(base=10))
+    ax.xaxis.set_major_formatter(LogFormatter(base=10, labelOnlyBase=False))
     ax.set_xticks(sorted({int(row["value"]) for row in free_summary}))
     ax.legend(frameon=False)
     fig.tight_layout()
@@ -389,10 +470,17 @@ def read_csv(path: Path) -> list[dict[str, str]]:
 
 
 def write_metadata(path: Path, args: argparse.Namespace, timestamp: str, suffix: str, reference_n: int | None) -> None:
+    if args.compare_density:
+        plot_type = "density_comparison"
+    elif args.variable == "n":
+        plot_type = "n_m1_comparison"
+    else:
+        plot_type = "single_variable"
+
     metadata = {
         "timestamp": timestamp,
         "suffix": suffix,
-        "plot_type": "density_comparison" if args.compare_density else "single_variable",
+        "plot_type": plot_type,
         "density_reference_n": reference_n,
         "args": {
             "variable": args.variable,
@@ -447,6 +535,13 @@ def replot_saved(run_dir: Path) -> None:
             summaries.get("fixed_density", []),
             reference_n,
         )
+    elif metadata["plot_type"] == "n_m1_comparison":
+        plot_n_m_comparison(
+            output_png,
+            args,
+            summaries.get("cim", []),
+            summaries.get("brute_force_m1", []),
+        )
     else:
         plot_summary(output_png, args, summaries.get("standard", []))
 
@@ -482,9 +577,6 @@ def main() -> None:
             reference_n = values[len(values) // 2]
         if reference_n not in values:
             raise SystemExit("density-reference-n debe ser uno de los valores indicados en --values")
-        if reference_n == values[-1]:
-            raise SystemExit("density-reference-n debe dejar al menos un N mayor para incrementar N y L")
-
     if args.compile:
         compile_sources(args)
 
@@ -515,6 +607,22 @@ def main() -> None:
                 free_summary,
                 fixed_summary,
                 reference_n,
+            )
+        elif args.variable == "n":
+            cim_rows = run_analysis(args, run_root, series="cim")
+            brute_force_rows = run_analysis(args, run_root, series="brute_force_m1", m_override=1)
+            cim_summary = aggregate(cim_rows)
+            brute_force_summary = aggregate(brute_force_rows)
+            rows = [*cim_rows, *brute_force_rows]
+            summary_rows = [
+                *with_series(cim_summary, "cim"),
+                *with_series(brute_force_summary, "brute_force_m1"),
+            ]
+            plot_n_m_comparison(
+                stem.with_suffix(".png"),
+                args,
+                cim_summary,
+                brute_force_summary,
             )
         else:
             rows = run_analysis(args, run_root)
