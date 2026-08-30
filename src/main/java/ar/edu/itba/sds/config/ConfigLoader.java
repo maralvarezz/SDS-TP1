@@ -3,6 +3,8 @@ package ar.edu.itba.sds.config;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.OptionalLong;
@@ -38,7 +40,16 @@ public final class ConfigLoader {
                 properties.getProperty("simulation.viz.python-executable"),
                 Path.of(properties.getProperty("simulation.viz.plot-script")),
                 Path.of(properties.getProperty("simulation.viz.output-dir")),
-                Path.of(properties.getProperty("simulation.viz.render-data"))
+                Path.of(properties.getProperty("simulation.viz.render-data")),
+                booleanProperty(properties, "simulation.warmup.enabled"),
+                intProperty(properties, "simulation.warmup.n"),
+                intProperty(properties, "simulation.warmup.iterations"),
+                booleanProperty(properties, "simulation.experiment.enabled"),
+                properties.getProperty("simulation.experiment.variable"),
+                intListProperty(properties, "simulation.experiment.values"),
+                intProperty(properties, "simulation.experiment.runs-per-value"),
+                Path.of(properties.getProperty("simulation.experiment.output.runs")),
+                Path.of(properties.getProperty("simulation.experiment.output.summary"))
         );
     }
 
@@ -63,6 +74,15 @@ public final class ConfigLoader {
         properties.setProperty("simulation.viz.plot-script", "viz/plot_static.py");
         properties.setProperty("simulation.viz.output-dir", "output/figures");
         properties.setProperty("simulation.viz.render-data", "output/render_data.json");
+        properties.setProperty("simulation.warmup.enabled", "true");
+        properties.setProperty("simulation.warmup.n", "200");
+        properties.setProperty("simulation.warmup.iterations", "5000");
+        properties.setProperty("simulation.experiment.enabled", "false");
+        properties.setProperty("simulation.experiment.variable", "n");
+        properties.setProperty("simulation.experiment.values", "100");
+        properties.setProperty("simulation.experiment.runs-per-value", "10");
+        properties.setProperty("simulation.experiment.output.runs", "output/timing_runs.csv");
+        properties.setProperty("simulation.experiment.output.summary", "output/timing_summary.csv");
         return properties;
     }
 
@@ -112,6 +132,15 @@ public final class ConfigLoader {
         mapping.put("viz-script", "simulation.viz.plot-script");
         mapping.put("viz-output-dir", "simulation.viz.output-dir");
         mapping.put("viz-render-data", "simulation.viz.render-data");
+        mapping.put("warmup-enabled", "simulation.warmup.enabled");
+        mapping.put("warmup-n", "simulation.warmup.n");
+        mapping.put("warmup-iterations", "simulation.warmup.iterations");
+        mapping.put("experiment-enabled", "simulation.experiment.enabled");
+        mapping.put("experiment-variable", "simulation.experiment.variable");
+        mapping.put("experiment-values", "simulation.experiment.values");
+        mapping.put("experiment-runs-per-value", "simulation.experiment.runs-per-value");
+        mapping.put("experiment-runs-file", "simulation.experiment.output.runs");
+        mapping.put("experiment-summary-file", "simulation.experiment.output.summary");
         return mapping;
     }
 
@@ -148,6 +177,22 @@ public final class ConfigLoader {
             return OptionalLong.of(Long.parseLong(value));
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("La propiedad " + key + " debe ser long o vacia", e);
+        }
+    }
+
+    private static List<Integer> intListProperty(Properties properties, String key) {
+        String value = properties.getProperty(key);
+        if (value == null || value.isBlank()) {
+            return List.of();
+        }
+
+        try {
+            return Arrays.stream(value.trim().split("[,;\\s]+"))
+                    .filter(part -> !part.isBlank())
+                    .map(Integer::parseInt)
+                    .toList();
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("La propiedad " + key + " debe ser una lista de enteros", e);
         }
     }
 }

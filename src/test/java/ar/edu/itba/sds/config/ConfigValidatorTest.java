@@ -3,6 +3,7 @@ package ar.edu.itba.sds.config;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
+import java.util.List;
 import java.util.OptionalLong;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -15,7 +16,9 @@ class ConfigValidatorTest {
                 n, 20.0, 10, 1.0, 0.23, 0.26, false, OptionalLong.empty(), "auto",
                 Path.of("input/static.txt"), Path.of("input/dynamic.txt"), Path.of("output/neighbours.txt"),Path.of("output/time.txt"),
                 targetParticleId, true, "python3", Path.of("viz/plot_static.py"),
-                Path.of("output/figures"), Path.of("output/render_data.json")
+                Path.of("output/figures"), Path.of("output/render_data.json"),
+                true, 200, 5000, false, "n", List.of(100), 10,
+                Path.of("output/timing_runs.csv"), Path.of("output/timing_summary.csv")
         );
     }
 

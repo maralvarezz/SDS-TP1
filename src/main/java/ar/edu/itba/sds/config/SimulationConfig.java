@@ -1,6 +1,7 @@
 package ar.edu.itba.sds.config;
 
 import java.nio.file.Path;
+import java.util.List;
 import java.util.OptionalLong;
 
 public record SimulationConfig(
@@ -22,6 +23,15 @@ public record SimulationConfig(
         String vizPythonExecutable,
         Path vizPlotScript,
         Path vizOutputDir,
-        Path vizRenderDataFile
+        Path vizRenderDataFile,
+        boolean warmupEnabled,
+        int warmupN,
+        int warmupIterations,
+        boolean experimentEnabled,
+        String experimentVariable,
+        List<Integer> experimentValues,
+        int experimentRunsPerValue,
+        Path experimentRunsFile,
+        Path experimentSummaryFile
 ) {
 }

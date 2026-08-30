@@ -53,4 +53,31 @@ public final class ConfigValidator {
                     "target-particle debe estar entre 1 y N (" + config.n() + "), recibido: " + config.targetParticleId());
         }
     }
+
+    public static void validateWarmup(SimulationConfig config) {
+        if (config.warmupN() <= 0) {
+            throw new IllegalArgumentException("warmup-n debe ser mayor a 0");
+        }
+        if (config.warmupIterations() < 0) {
+            throw new IllegalArgumentException("warmup-iterations debe ser mayor o igual a 0");
+        }
+    }
+
+    public static void validateExperiment(SimulationConfig config) {
+        if (!"n".equalsIgnoreCase(config.experimentVariable())
+                && !"m".equalsIgnoreCase(config.experimentVariable())) {
+            throw new IllegalArgumentException("experiment-variable debe ser n o m");
+        }
+        if (config.experimentValues().isEmpty()) {
+            throw new IllegalArgumentException("experiment-values no puede estar vacio");
+        }
+        for (int value : config.experimentValues()) {
+            if (value <= 0) {
+                throw new IllegalArgumentException("Todos los valores de experiment-values deben ser mayores a 0");
+            }
+        }
+        if (config.experimentRunsPerValue() <= 0) {
+            throw new IllegalArgumentException("experiment-runs-per-value debe ser mayor a 0");
+        }
+    }
 }
