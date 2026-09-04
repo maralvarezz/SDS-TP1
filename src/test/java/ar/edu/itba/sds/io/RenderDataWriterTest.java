@@ -41,7 +41,6 @@ class RenderDataWriterTest {
         assertTrue(content.contains("\"1\": [2]"));
         assertTrue(content.contains("\"2\": [1]"));
 
-        // valida que python pueda parsearlo (mismo formato que consumen los scripts de viz)
         ProcessBuilder pb = new ProcessBuilder("python3", "-c",
                 "import json,sys; json.load(open(sys.argv[1]))", output.toString());
         pb.inheritIO();
@@ -49,7 +48,7 @@ class RenderDataWriterTest {
         try {
             process = pb.start();
         } catch (IOException e) {
-            return; // python3 no disponible en este entorno, se omite la validacion cruzada
+            return;
         }
         try {
             int exit = process.waitFor();

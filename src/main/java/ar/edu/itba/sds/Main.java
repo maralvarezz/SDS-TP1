@@ -94,8 +94,6 @@ public final class Main {
                     neighbours
             );
 
-            // Genera la figura pedida solo si se habilita por parametro/config.
-            //PlotInvoker.generateStaticFigure(config);
         }
     }
 

@@ -9,13 +9,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.TimeUnit;
 
-/**
- * Dispara la generacion automatica de la figura estatica (punto 1 del enunciado:
- * posiciones de todas las particulas, la particula objetivo de un color y sus
- * vecinos de otro) invocando el script de Python via ProcessBuilder. Si Python
- * o matplotlib no estan disponibles, no rompe la corrida: avisa por stderr y
- * el resto de la simulacion (vecinos + tiempo) queda igual generado.
- */
 public final class PlotInvoker {
     private static final DateTimeFormatter TIMESTAMP = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
 

@@ -10,13 +10,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/**
- * Escribe un JSON autocontenido con todo lo necesario para graficar el sistema
- * (posiciones, radios, L, rc, condicion de borde, particula objetivo y el mapa
- * completo de vecinos ya calculado por el Cell Index Method). Tanto la figura
- * estatica que se genera en cada corrida como el visualizador interactivo leen
- * este mismo archivo, para no duplicar la logica de vecinos en Python.
- */
 public final class RenderDataWriter {
     private RenderDataWriter() {
     }

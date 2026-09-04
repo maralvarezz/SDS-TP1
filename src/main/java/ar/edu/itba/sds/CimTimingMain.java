@@ -14,22 +14,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.OptionalLong;
 
-/**
- * Version TP1 del punto (g) del enunciado de TP2 (comparar tiempos del CIM entre TP1 y TP2), a
- * "las mismas condiciones" que la simulacion REAL de bandadas de TP2 (ver
- * ar.edu.itba.sds.tp2.experiment.CimTimingByModelMain): L=10 FIJO (el tamaño de caja que pide el
- * enunciado de TP2), rc=1, particulas PUNTUALES (radio 0, igual que las particulas de bandadas de
- * TP2 -- NO las particulas con radio 0.23-0.26 que usa TP1 para sus propios estudios), y
- * N=200,400,800 (las mismas rho=2,4,8 a L=10 que se estudiaron en los puntos a-f de TP2). Antes
- * esta clase escalaba L/M a densidad fija con particulas CON radio para llegar a N grandes
- * (10-5000) -- eso tenia sentido para comparar el CIM "en abstracto" en un rango amplio, pero no
- * es "las mismas condiciones" que las simulaciones reales de TP2, que es lo que pide el enunciado
- * y lo que valida la comparacion.
- * <p>
- * Un unico proceso Java, un solo warm-up al principio, mide los 3 N puertas adentro del mismo
- * proceso ya caliente -- evita el ruido de arranque/GC de lanzar una JVM nueva por N (ver
- * historial en viz/compare_cim_timing.py). Mismo formato de salida que antes: n,run,l,m,elapsed_ns.
- */
 public final class CimTimingMain {
 
     private static final double L = 10.0;

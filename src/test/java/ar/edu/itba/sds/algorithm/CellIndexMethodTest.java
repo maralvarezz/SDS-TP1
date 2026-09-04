@@ -31,7 +31,6 @@ class CellIndexMethodTest {
 
     @Test
     void considersParticleRadiusInDistance() {
-        // centros a distancia 1.5, radios 0.3 c/u => borde-borde = 1.5 - 0.6 = 0.9 < rc=1.0
         List<Particle> particles = List.of(
                 new Particle(1, 5.0, 5.0, 0.3, 0),
                 new Particle(2, 6.5, 5.0, 0.3, 0)
